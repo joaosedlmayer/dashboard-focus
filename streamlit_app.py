@@ -6,19 +6,17 @@ import re
 from typing import Dict, List, Any, Optional
 
 # --- Configuração da Página ---
-# Usamos o layout "wide" para que o dashboard ocupe a tela inteira
 st.set_page_config(layout="wide")
 
-# --- Funções de Scraping e Limpeza (do nosso script anterior) ---
-# (Colocamos todas as funções auxiliares aqui)
+# --- Funções de Scraping e Limpeza (Inalteradas) ---
 
+@st.cache_data(ttl=3600)
 def get_holidays_list() -> List[pd.Timestamp]:
     """Busca e processa a lista de feriados da ANBIMA uma única vez."""
     try:
         url = 'https://www.anbima.com.br/feriados/arqs/feriados_nacionais.xls'
         df_feriados = pd.read_excel(url)
         df_feriados.dropna(inplace=True)
-        # Retorna os dias úteis ANTERIORES aos feriados
         return [d - pd.tseries.offsets.BDay(1) for d in pd.to_datetime(df_feriados['Data'], dayfirst=True)]
     except Exception as e:
         print(f"⚠️ Aviso: Não foi possível buscar a lista de feriados: {e}.")
@@ -35,7 +33,6 @@ def scrap_olinda_requests(codigo: str, series_name: str) -> Optional[Dict[str, A
     tries = 5
     url = ""
     
-    # Mapeamento de URLs
     if series_name == 'Focus Curva Selic':
         url = "https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoSelic?$top=10000&$filter=Data%20ge%20%272022-01-07%27%20and%20baseCalculo%20eq%200&$format=json&$select=Data,Reuniao,Mediana,baseCalculo"
     elif 'Média' in series_name:
@@ -55,7 +52,6 @@ def scrap_olinda_requests(codigo: str, series_name: str) -> Optional[Dict[str, A
             response.raise_for_status()
             return response.json()
         except (requests.RequestException, ValueError) as e:
-            # Em vez de printar, usamos o logger do streamlit
             st.warning(f"Tentativa {i + 1} falhou para '{series_name}': {e}", icon="⚠️")
             time.sleep(1)
     
@@ -76,23 +72,16 @@ def clean_olinda_requests(json_data: Dict[str, Any], series_name: str, holiday_l
         df['DataReferencia'] = pd.to_datetime(df['DataReferencia'])
         return df.pivot_table(index=df.index.name, columns='DataReferencia', values='Mediana', aggfunc='first')
 
-    # Lógica de pivô para séries anuais
     df_pivotado = df.pivot_table(index=df.index.name, columns='DataReferencia', values='Mediana', aggfunc='first')
-    
-    # Filtra por sextas-feiras OU vésperas de feriado
     filtro_dia = (df_pivotado.index.weekday == 4) | (df_pivotado.index.isin(holiday_list))
     return df_pivotado[filtro_dia]
 
 
-# --- Funções do App Streamlit ---
+# --- Funções do App Streamlit (Inalteradas) ---
 
-@st.cache_data(ttl=3600) # <-- MÁGICA! Cacheia os dados por 1 hora (3600s)
+@st.cache_data(ttl=3600)
 def carregar_dados_focus() -> Dict[str, pd.DataFrame]:
-    """
-    Função principal que busca e processa TODOS os dados.
-    O Streamlit armazena o resultado em cache.
-    """
-    # Usamos o seu `timeseries_principais` diretamente
+    """Função principal que busca e processa TODOS os dados."""
     series_map = {
         'Focus IPCA Bacen': 'IPCA',
         'Focus IPCA Bacen 5 dias': 'IPCA',
@@ -112,9 +101,7 @@ def carregar_dados_focus() -> Dict[str, pd.DataFrame]:
         'Focus IPCA Serviços Bacen': 'IPCA Serviços'
     }
     
-    # Remove as séries que não estão no seu `series_principais`
     lista_series_raw = series_map.keys()
-    
     dicionario_dfs = {}
     holidays = get_holidays_list()
 
@@ -123,29 +110,23 @@ def carregar_dados_focus() -> Dict[str, pd.DataFrame]:
 
     for i, series_name in enumerate(lista_series_raw):
         series_code = series_map[series_name]
-        
         json_data = scrap_olinda_requests(series_code, series_name)
         
         if json_data:
             cleaned_df = clean_olinda_requests(json_data, series_name, holidays)
             if not cleaned_df.empty:
-                # Remove colunas que não são anos (ex: '2022-01')
                 cleaned_df = cleaned_df.loc[:, [col for col in cleaned_df.columns if str(col).isdigit()]]
                 dicionario_dfs[series_name] = cleaned_df
         
         progress_bar.progress((i + 1) / total_series, text=f"Buscando: {series_name}")
     
-    progress_bar.empty() # Limpa a barra de progresso
+    progress_bar.empty()
     return dicionario_dfs
 
 @st.cache_data
 def criar_tabela_resumo(dicionario_dfs: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Cria a tabela de resumo principal no estilo da imagem."""
-    
-    # Pega os anos dinamicamente do primeiro DataFrame
     anos_disponiveis = list(dicionario_dfs.values())[0].columns
-    
-    # Pega o ano atual e os próximos 3 (total 4 anos)
     ano_atual = pd.Timestamp.now().year
     anos = [str(a) for a in anos_disponiveis if int(a) >= ano_atual and int(a) < ano_atual + 4]
     
@@ -164,7 +145,7 @@ def criar_tabela_resumo(dicionario_dfs: Dict[str, pd.DataFrame]) -> pd.DataFrame
         nome_limpo = nome_serie.replace('Focus ', '').replace(' Bacen', '')
         
         if len(df) < 5:
-            st.warning(f"Série '{nome_limpo}' tem menos de 5 observações, pulando tabela resumo.")
+            st.warning(f"Série '{nome_limpo}' tem menos de 5 observações, pulando tabela resumo.", icon="⚠️")
             continue
 
         hoje_vals = df.iloc[-1]
@@ -190,50 +171,41 @@ def criar_tabela_resumo(dicionario_dfs: Dict[str, pd.DataFrame]) -> pd.DataFrame
 
 st.title("Dashboard de Expectativas de Mercado - Focus (BCB)")
 
-# 1. Carrega os dados (usando o cache)
 dicionario_dfs = carregar_dados_focus()
 
 if not dicionario_dfs:
-    st.error("Nenhum dado foi carregado. Verifique a conexão ou a API do BCB.")
+    st.error("Nenhum dado foi carregado. Verifique a conexão ou a API do BCB.", icon="❌")
 else:
-    # Mostra a data da última atualização
     last_update_date = list(dicionario_dfs.values())[0].index[-1]
     st.caption(f"Última atualização (data 'Hoje'): {last_update_date.strftime('%d/%m/%Y')}")
 
-    # 2. Cria e exibe a Tabela Resumo
+    # 2. Cria e exibe a Tabela Resumo (Inalterada)
     st.header("Mediana - Agregado")
-    
-    # Pega os anos da tabela para formatar
     anos_tabela = [str(a) for a in range(pd.Timestamp.now().year, pd.Timestamp.now().year + 4)]
-    
     df_resumo = criar_tabela_resumo(dicionario_dfs)
-    
-    # Formatação para os números e centralização para os ícones
-    
-    formatter_dict = {}  
-    for a in anos_tabela:
-        formatter_dict[(a, 'Há 4 semanas')] = '{:.2f}'
-        formatter_dict[(a, 'Hoje')] = '{:.2f}'
+
+    formatter_dict = {}
     for a in anos_tabela:
         formatter_dict[(a, 'Há 4 semanas')] = '{:.2f}'
         formatter_dict[(a, 'Hoje')] = '{:.2f}'
 
- 
     comparacao_cols = [(a, 'Comp.') for a in anos_tabela]
 
-  
     styled_df = df_resumo.style \
         .format(formatter=formatter_dict, na_rep="-") \
         .set_properties(**{'text-align': 'center'}, subset=comparacao_cols)
 
-    
     st.dataframe(styled_df, use_container_width=True)
+    
     st.markdown("---")
 
-    # 3. Cria e exibe os Gráficos Individuais
-    st.header("Gráficos Individuais (Evolução das Expectativas)")
+    # 3. Cria e exibe os Gráficos Individuais (COM A MUDANÇA)
+    st.header("Gráficos Individuais (Evolução das Expectativas - Últimos 12 Meses)")
     
     df_list = list(dicionario_dfs.items())
+    
+    # --- NOVO: Define a data de corte (12 meses atrás) ---
+    data_corte_12m = pd.Timestamp.now() - pd.DateOffset(months=12)
     
     # Loop para criar o layout de 2 colunas
     for i in range(0, len(df_list), 2):
@@ -241,28 +213,37 @@ else:
         
         # Gráfico na Coluna 1
         with col1:
-            nome1, df1 = df_list[i]
+            nome1, df1_full = df_list[i] # Renomeado para df1_full
             st.subheader(nome1.replace('Focus ', '').replace(' Bacen', ''))
             
-            # Pega apenas os 4 anos principais para o gráfico
-            anos_grafico = [col for col in df1.columns if int(col) >= pd.Timestamp.now().year and int(col) < pd.Timestamp.now().year + 4]
-            if anos_grafico:
-                st.line_chart(df1[anos_grafico])
+            # --- NOVO: Filtra o DataFrame para os últimos 12 meses ---
+            df1_filtrado = df1_full[df1_full.index >= data_corte_12m]
+            
+            if not df1_filtrado.empty:
+                # Pega apenas os 4 anos principais para o gráfico
+                anos_grafico = [col for col in df1_filtrado.columns if int(col) >= pd.Timestamp.now().year and int(col) < pd.Timestamp.now().year + 4]
+                if anos_grafico:
+                    st.line_chart(df1_filtrado[anos_grafico])
+                else:
+                    st.line_chart(df1_filtrado) # Mostra todos se o filtro falhar
             else:
-                st.line_chart(df1) # Mostra todos se o filtro falhar
+                st.warning(f"Sem dados nos últimos 12 meses para {nome1}", icon="⚠️")
 
         # Gráfico na Coluna 2 (se existir)
         if (i + 1) < len(df_list):
             with col2:
-                nome2, df2 = df_list[i+1]
+                nome2, df2_full = df_list[i+1] # Renomeado para df2_full
                 st.subheader(nome2.replace('Focus ', '').replace(' Bacen', ''))
                 
-                anos_grafico_2 = [col for col in df2.columns if int(col) >= pd.Timestamp.now().year and int(col) < pd.Timestamp.now().year + 4]
-                if anos_grafico_2:
-                    st.line_chart(df2[anos_grafico_2])
+                # --- NOVO: Filtra o DataFrame para os últimos 12 meses ---
+                df2_filtrado = df2_full[df2_full.index >= data_corte_12m]
+                
+                if not df2_filtrado.empty:
+                    # Pega apenas os 4 anos principais para o gráfico
+                    anos_grafico_2 = [col for col in df2_filtrado.columns if int(col) >= pd.Timestamp.now().year and int(col) < pd.Timestamp.now().year + 4]
+                    if anos_grafico_2:
+                        st.line_chart(df2_filtrado[anos_grafico_2])
+                    else:
+                        st.line_chart(df2_filtrado)
                 else:
-
-                    st.line_chart(df2)
-
-
-
+                    st.warning(f"Sem dados nos últimos 12 meses para {nome2}", icon="⚠️")
