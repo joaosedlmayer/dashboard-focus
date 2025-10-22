@@ -123,7 +123,6 @@ def carregar_dados_focus() -> Dict[str, pd.DataFrame]:
     progress_bar.empty()
     return dicionario_dfs
 
-# --- NOVO: Função da tabela de resumo ATUALIZADA ---
 @st.cache_data
 def criar_tabela_resumo(dicionario_dfs: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Cria a tabela de resumo principal no estilo da imagem."""
@@ -159,19 +158,19 @@ def criar_tabela_resumo(dicionario_dfs: Dict[str, pd.DataFrame]) -> pd.DataFrame
             continue
 
         hoje_vals = df.iloc[-1]
-        semana1_vals = df.iloc[-2] # <-- NOVO: Pega a semana anterior
+        semana1_vals = df.iloc[-2] 
         semana4_vals = df.iloc[-5]
         
         for ano in anos:
             val_hoje = hoje_vals.get(ano, pd.NA)
-            val_semana1 = semana1_vals.get(ano, pd.NA) # <-- NOVO
+            val_semana1 = semana1_vals.get(ano, pd.NA) 
             val_semana4 = semana4_vals.get(ano, pd.NA)
             
             df_summary.loc[nome_limpo, (ano, 'Há 4 semanas')] = val_semana4
-            df_summary.loc[nome_limpo, (ano, 'Há 1 semana')] = val_semana1 # <-- NOVO
+            df_summary.loc[nome_limpo, (ano, 'Há 1 semana')] = val_semana1 
             df_summary.loc[nome_limpo, (ano, 'Hoje')] = val_hoje
             
-            # --- NOVO: Lógica de comparação usa 'Hoje' vs 'Há 1 semana' ---
+          
             arrow = '–'
             if pd.notna(val_hoje) and pd.notna(val_semana1):
                 if val_hoje > val_semana1: arrow = '🔺'
@@ -193,7 +192,6 @@ else:
     last_update_date = list(dicionario_dfs.values())[0].index[-1]
     st.caption(f"Última atualização (data 'Hoje'): {last_update_date.strftime('%d/%m/%Y')}")
 
-    # --- NOVO: Bloco de exibição da Tabela Resumo ATUALIZADO ---
     st.header("Mediana - Agregado")
     anos_tabela = [str(a) for a in range(pd.Timestamp.now().year, pd.Timestamp.now().year + 4)]
     df_resumo = criar_tabela_resumo(dicionario_dfs)
@@ -202,7 +200,7 @@ else:
     formatter_dict = {}
     for a in anos_tabela:
         formatter_dict[(a, 'Há 4 semanas')] = '{:.2f}'
-        formatter_dict[(a, 'Há 1 semana')] = '{:.2f}' # <-- NOVO
+        formatter_dict[(a, 'Há 1 semana')] = '{:.2f}' 
         formatter_dict[(a, 'Hoje')] = '{:.2f}'
 
     # 2. Crie a lista de colunas de comparação
@@ -258,3 +256,4 @@ else:
                         st.line_chart(df2_filtrado)
                 else:
                     st.warning(f"Sem dados nos últimos 12 meses para {nome2}", icon="⚠️")
+
