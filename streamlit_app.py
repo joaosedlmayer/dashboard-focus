@@ -209,6 +209,11 @@ else:
     df_resumo = criar_tabela_resumo(dicionario_dfs)
     
     # Formatação para os números e centralização para os ícones
+    
+    formatter_dict = {}  
+    for a in anos_tabela:
+        formatter_dict[(a, 'Há 4 semanas')] = '{:.2f}'
+        formatter_dict[(a, 'Hoje')] = '{:.2f}'
     for a in anos_tabela:
         formatter_dict[(a, 'Há 4 semanas')] = '{:.2f}'
         formatter_dict[(a, 'Hoje')] = '{:.2f}'
@@ -258,5 +263,6 @@ else:
                 else:
 
                     st.line_chart(df2)
+
 
 
