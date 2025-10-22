@@ -211,7 +211,7 @@ else:
     # Formatação para os números e centralização para os ícones
     st.dataframe(
         df_resumo.style
-        .format({(a, 'Há 4 semanas'): '{:.2f}', (a, 'Hoje'): '{:.2f}' for a in anos_tabela}, na_rep="-")
+        .format(formatter={(a, 'Há 4 semanas'): '{:.2f}', (a, 'Hoje'): '{:.2f}' for a in anos_tabela}, na_rep="-")
         .set_properties(**{'text-align': 'center'}, subset=[(a, 'Comp.') for a in anos_tabela]),
         use_container_width=True
     )
@@ -248,4 +248,5 @@ else:
                 if anos_grafico_2:
                     st.line_chart(df2[anos_grafico_2])
                 else:
+
                     st.line_chart(df2)
