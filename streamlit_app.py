@@ -209,12 +209,20 @@ else:
     df_resumo = criar_tabela_resumo(dicionario_dfs)
     
     # Formatação para os números e centralização para os ícones
-    st.dataframe(
-        df_resumo.style
-        .format(formatter={(a, 'Há 4 semanas'): '{:.2f}', (a, 'Hoje'): '{:.2f}' for a in anos_tabela}, na_rep="-")
-        .set_properties(**{'text-align': 'center'}, subset=[(a, 'Comp.') for a in anos_tabela]),
-        use_container_width=True
-    )
+    for a in anos_tabela:
+        formatter_dict[(a, 'Há 4 semanas')] = '{:.2f}'
+        formatter_dict[(a, 'Hoje')] = '{:.2f}'
+
+ 
+    comparacao_cols = [(a, 'Comp.') for a in anos_tabela]
+
+  
+    styled_df = df_resumo.style \
+        .format(formatter=formatter_dict, na_rep="-") \
+        .set_properties(**{'text-align': 'center'}, subset=comparacao_cols)
+
+    
+    st.dataframe(styled_df, use_container_width=True)
     st.markdown("---")
 
     # 3. Cria e exibe os Gráficos Individuais
@@ -250,4 +258,5 @@ else:
                 else:
 
                     st.line_chart(df2)
+
 
