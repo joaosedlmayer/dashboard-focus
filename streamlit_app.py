@@ -4,23 +4,18 @@ Created on Thu Oct 23 14:44:04 2025
 
 @author: joaos
 """
-
 import streamlit as st
 import pandas as pd
 import requests
 import time
 import re
 from typing import Dict, List, Any, Optional
-import altair as alt  # <-- ADICIONADO AQUI
+import altair as alt
 
-# --- Configuração da Página ---
 st.set_page_config(layout="wide")
-
-# --- Funções de Scraping e Limpeza (Inalteradas) ---
 
 @st.cache_data(ttl=3600)
 def get_holidays_list() -> List[pd.Timestamp]:
-    """Busca e processa a lista de feriados da ANBIMA uma única vez."""
     try:
         url = 'https://www.anbima.com.br/feriados/arqs/feriados_nacionais.xls'
         df_feriados = pd.read_excel(url)
@@ -31,7 +26,6 @@ def get_holidays_list() -> List[pd.Timestamp]:
         return []
 
 def scrap_olinda_requests(codigo: str, series_name: str) -> Optional[Dict[str, Any]]:
-    """Busca dados da API Olinda com retentativas."""
     coords = None
     if ";" in str(codigo):
         parts = str(codigo).split(";")
@@ -67,7 +61,6 @@ def scrap_olinda_requests(codigo: str, series_name: str) -> Optional[Dict[str, A
     return None
 
 def clean_olinda_requests(json_data: Dict[str, Any], series_name: str, holiday_list: List[pd.Timestamp]) -> pd.DataFrame:
-    """Limpa o JSON da API e transforma em DataFrame."""
     if not json_data or 'value' not in json_data or not json_data['value']:
         return pd.DataFrame()
 
@@ -85,11 +78,8 @@ def clean_olinda_requests(json_data: Dict[str, Any], series_name: str, holiday_l
     return df_pivotado[filtro_dia]
 
 
-# --- Funções do App Streamlit ---
-
 @st.cache_data(ttl=3600)
 def carregar_dados_focus() -> Dict[str, pd.DataFrame]:
-    """Função principal que busca e processa TODOS os dados."""
     series_map = {
         'Focus IPCA Bacen': 'IPCA',
         'Focus IPCA Bacen 5 dias': 'IPCA',
@@ -133,8 +123,6 @@ def carregar_dados_focus() -> Dict[str, pd.DataFrame]:
 
 @st.cache_data
 def criar_tabela_resumo(dicionario_dfs: Dict[str, pd.DataFrame]) -> pd.DataFrame:
-    """Cria a tabela de resumo principal no estilo da imagem."""
-    
     try:
         anos_disponiveis = list(dicionario_dfs.values())[0].columns
     except IndexError:
@@ -185,8 +173,6 @@ def criar_tabela_resumo(dicionario_dfs: Dict[str, pd.DataFrame]) -> pd.DataFrame
             
     return df_summary
 
-# --- Layout do App ---
-
 st.title("Dashboard de Expectativas de Mercado - Focus (BCB)")
 
 dicionario_dfs = carregar_dados_focus()
@@ -217,7 +203,6 @@ else:
     
     st.markdown("---")
 
-    # --- SEÇÃO DE GRÁFICOS MODIFICADA ---
     st.header("Gráficos Individuais (Evolução das Expectativas - Últimos 12 Meses)")
     
     df_list = list(dicionario_dfs.items())
@@ -234,20 +219,17 @@ else:
             df1_filtrado = df1_full[df1_full.index >= data_corte_12m]
             
             if not df1_filtrado.empty:
-                # Decide quais colunas plotar
                 anos_grafico = [col for col in df1_filtrado.columns if int(col) >= pd.Timestamp.now().year and int(col) < pd.Timestamp.now().year + 4]
                 if anos_grafico:
                     df_para_plotar = df1_filtrado[anos_grafico]
                 else:
                     df_para_plotar = df1_filtrado
                 
-                # Prepara dados para o Altair (formato longo)
                 df_long = df_para_plotar.reset_index().melt(id_vars='Data', var_name='Referência', value_name='Mediana')
                 
-                # Cria o gráfico Altair
                 chart = alt.Chart(df_long).mark_line().encode(
                     x=alt.X('Data'),
-                    y=alt.Y('Mediana', scale=alt.Scale(zero=False)), # <--- AJUSTE AQUI
+                    y=alt.Y('Mediana', scale=alt.Scale(zero=False)),
                     color='Referência',
                     tooltip=['Data', 'Referência', 'Mediana']
                 ).interactive()
@@ -264,20 +246,17 @@ else:
                 df2_filtrado = df2_full[df2_full.index >= data_corte_12m]
                 
                 if not df2_filtrado.empty:
-                    # Decide quais colunas plotar
                     anos_grafico_2 = [col for col in df2_filtrado.columns if int(col) >= pd.Timestamp.now().year and int(col) < pd.Timestamp.now().year + 4]
                     if anos_grafico_2:
                         df_para_plotar_2 = df2_filtrado[anos_grafico_2]
                     else:
                         df_para_plotar_2 = df2_filtrado
                     
-                    # Prepara dados para o Altair (formato longo)
                     df_long_2 = df_para_plotar_2.reset_index().melt(id_vars='Data', var_name='Referência', value_name='Mediana')
                     
-                    # Cria o gráfico Altair
                     chart_2 = alt.Chart(df_long_2).mark_line().encode(
                         x=alt.X('Data'),
-                        y=alt.Y('Mediana', scale=alt.Scale(zero=False)), # <--- AJUSTE AQUI
+                        y=alt.Y('Mediana', scale=alt.Scale(zero=False)),
                         color='Referência',
                         tooltip=['Data', 'Referência', 'Mediana']
                     ).interactive()
